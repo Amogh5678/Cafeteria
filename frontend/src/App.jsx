@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { BACKEND_URL } from "./config";
+import "./index.css";
 
 function App() {
   const [user, setUser] = useState(null);
@@ -7,7 +8,7 @@ function App() {
 
   useEffect(() => {
     fetch(`${BACKEND_URL}/api/me`, {
-      credentials: "include", // 🔴 IMPORTANT
+      credentials: "include",
     })
       .then((res) => {
         if (!res.ok) throw new Error("Not logged in");
@@ -30,23 +31,42 @@ function App() {
     window.location.href = `${BACKEND_URL}/auth/logout`;
   };
 
-  if (loading) return <p>Loading...</p>;
+  if (loading) {
+    return <p style={{ textAlign: "center" }}>Loading...</p>;
+  }
 
   return (
-    <div style={{ padding: "40px", fontFamily: "Arial" }}>
-      <h1>Cafeteria Seat Reservation</h1>
-
+    <div className="login-card">
       {!user ? (
         <>
-          <p>You are not logged in.</p>
-          <button onClick={login}>Login with w3id</button>
+          <h1 className="login-title">CaféConnect</h1>
+
+          <p className="login-subtitle">
+            Welcome! Please login to reserve your seat.
+          </p>
+
+          <button className="login-btn" onClick={login}>
+            Login with w3id
+          </button>
+
+          <div className="login-help">
+            Need help?
+          </div>
         </>
       ) : (
         <>
+          <h1 className="login-title">Welcome ☕</h1>
+
+          <p className="login-subtitle">
+            You are logged in successfully
+          </p>
+
           <p><strong>Name:</strong> {user.name}</p>
           <p><strong>Email:</strong> {user.email}</p>
 
-          <button onClick={logout}>Logout</button>
+          <button className="login-btn" onClick={logout}>
+            Logout
+          </button>
         </>
       )}
     </div>

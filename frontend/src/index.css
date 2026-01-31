@@ -9,56 +9,26 @@
 body {
   margin: 0;
   min-height: 100vh;
+  background: #ddd8d2;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: #fcfcfb;
-  overflow: hidden;
 }
-
-body::before,
-body::after {
-  content: "";
-  position: absolute;
-  width: 400px;
-  height: 400px;
-  background: rgba(227, 139, 58, 0.25);
-  border-radius: 50%;
-  filter: blur(120px);
-  animation: float 10s ease-in-out infinite;
-}
-
-body::after {
-  animation-delay: -5s;
-  background: rgba(255, 200, 150, 0.25);
-}
-
-@keyframes float {
-  0% {
-    transform: translate(-50px, -50px);
-  }
-  50% {
-    transform: translate(50px, 50px);
-  }
-  100% {
-    transform: translate(-50px, -50px);
-  }
-}
-
 
 /* -------- Login Card -------- */
 .login-card {
   width: 400px;
-  height: 500px;
-  background: #f1d6b8;
-  border-radius: 18px;
+  height: 300px;
+  background: #eeddc8;
+  border-radius: 50px;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
   padding: 40px 24px;
   text-align: center;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  box-shadow: #e0a566;
+  box-shadow: #1b1a1a;
+  
 }
 
 /* -------- Title -------- */

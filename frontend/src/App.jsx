@@ -39,7 +39,7 @@ function App() {
     <div className="login-card">
       {!user ? (
         <>
-          <h1 className="login-title">CaféConnect</h1>
+          <h1 className="login-title">Cafe-reserve</h1>
 
           <p className="login-subtitle">
             Welcome! Please login to reserve your seat.

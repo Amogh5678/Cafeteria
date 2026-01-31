@@ -55,7 +55,7 @@ function App() {
         </>
       ) : (
         <>
-          <h1 className="login-title">Welcome ☕</h1>
+          <h1 className="login-title">Welcome</h1>
 
           <p className="login-subtitle">
             You are logged in successfully

@@ -3,16 +3,21 @@ require("dotenv").config();
 const express = require("express");
 const session = require("express-session");
 const cors = require("cors");
+const connectDB = require("./config/db")
 
 const { ensureAuth } = require("./middleware/authMiddleware");
 
 const app = express();
+connectDB();
 
 /**
  * --------------------
  * Middleware
  * --------------------
  */
+
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
 // Enable CORS for frontend
 app.use(
@@ -73,6 +78,9 @@ app.get("/api/me", ensureAuth, (req, res) => {
 
 // Auth routes (OIDC)
 app.use("/auth", require("./routes/auth"));
+
+app.use("/seats", require("./routes/seats.js"));
+app.use("/wallet", require("./routes/wallet.js"));
 
 /**
  * --------------------

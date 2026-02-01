@@ -7,6 +7,7 @@ const bookingSchema = new mongoose.Schema({
   endTime: { type: Date, required: true },
   durationMinutes: { type: Number, required: true },
   amountCharged: { type: Number, required: true },
+  seatId: { type: Number, required: true },
 
   status: { 
     type: String, 

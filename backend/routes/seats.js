@@ -10,8 +10,8 @@ const router = express.Router();
 
 router.post("/book", ensureAuth, async (req, res) => {
     try {
-        const { startTime, endTime } = req.body;
-        const employeeId = "A002D0744";
+        const { startTime, endTime, seatId } = req.body;
+        const { employeeId } = req.user;
         const employee = await Employee.findOne({ employeeId });
         const managerId = employee.managerId;
 
@@ -20,6 +20,10 @@ router.post("/book", ensureAuth, async (req, res) => {
 
         if (end <= start) {
         return res.status(400).json({ message: "Invalid time slot" });
+        }
+
+        if (!seatId || seatId < 1 || seatId > constants.SEAT_CAPACITY) {
+            return res.status(400).json({ message: "Invalid seat id" });
         }
 
         const durationMinutes = (end - start) / (1000 * 60);
@@ -46,14 +50,25 @@ router.post("/book", ensureAuth, async (req, res) => {
         return res.status(400).json({ message: "Daily booking limit exceeded" });
         }
 
-        const overlappingBookings = await Booking.countDocuments({
-        startTime: { $lt: end },
-        endTime: { $gt: start },
-        status: "BOOKED"
+        const seatAlreadyBooked = await Booking.findOne({
+            seatId,
+            startTime: { $lt: end },
+            endTime: { $gt: start },
+            status: "BOOKED"
         });
 
-        if (overlappingBookings >= constants.SEAT_CAPACITY) {
-        return res.status(409).json({ message: "No seats available" });
+        if (seatAlreadyBooked) {
+            return res.status(400).json({ message: "Seat is booked for this time slot" });
+        }
+
+        const totalOverlaps = await Booking.countDocuments({ 
+            startTime: { $lt: end },
+            endTime: { $gt: start },
+            status: "BOOKED"
+        });
+
+        if (totalOverlaps > constants.SEAT_CAPACITY) {
+            return res.status(409).json({ message: "Cafeteria full" });
         }
 
         const amount = durationMinutes * constants.BLU_RATE_PER_MINUTE;
@@ -70,6 +85,7 @@ router.post("/book", ensureAuth, async (req, res) => {
             booking = await Booking.create({
                 employeeId,
                 managerId,
+                seatId,
                 startTime: start,
                 endTime: end,
                 durationMinutes,

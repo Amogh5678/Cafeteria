@@ -46,7 +46,8 @@ router.get("/callback", async (req, res, next) => {
       email: claims.email,
     };
 
-    res.redirect("/debug-user");
+    res.redirect("http://localhost:5173/");
+
   } catch (err) {
     console.error("OIDC callback error:", err);
     next(err);

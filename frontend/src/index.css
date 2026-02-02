@@ -61,7 +61,7 @@ body {
 }
 
 .login-btn:hover {
-  transform: translateY(-2px);
+  transform: translateY(-4x);
   box-shadow: 0 6px 14px rgba(0, 0, 0, 0.25);
 }
 
@@ -69,10 +69,10 @@ body {
 .login-help {
   margin-top: 18px;
   font-size: 13px;
-  color: #999;
+  color: #070707;
   cursor: pointer;
 }
 
 .login-help:hover {
-  text-decoration: underline;
+  text-decoration:underline;
 }

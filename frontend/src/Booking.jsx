@@ -1,8 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronLeft, Coffee, X, Clock, Calendar, QrCode, CheckCircle2, Sun, Wind } from 'lucide-react';
+import {
+  Coffee,
+  X,
+  Clock,
+  Calendar,
+  Sun,
+  Wind
+} from 'lucide-react';
+import api from './api';
+import { BACKEND_URL } from "./config";
 
 export default function CafeReserve() {
-  const [currentScreen, setCurrentScreen] = useState('reserve'); // 'reserve' or 'bookings'
+  const [currentScreen, setCurrentScreen] = useState('reserve');
   const [selectedSeat, setSelectedSeat] = useState(null);
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
@@ -16,29 +25,48 @@ export default function CafeReserve() {
   const [cancelBookingId, setCancelBookingId] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [selectedBookingDetails, setSelectedBookingDetails] = useState(null);
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [bookings, setBookings] = useState([]);
 
-  // Generate seats with seat types
+  const today = new Date().toISOString().split('T')[0];
+
+  /* ---------------- USER ---------------- */
+  useEffect(() => {
+    fetch(`${BACKEND_URL}/api/me`, { credentials: "include" })
+      .then(res => {
+        if (!res.ok) throw new Error("Not logged in");
+        return res.json();
+      })
+      .then(setUser)
+      .catch(() => setUser(null))
+      .finally(() => setLoading(false));
+  }, []);
+
+  /* ---------------- BOOKINGS ---------------- */
+  useEffect(() => {
+    async function fetchBookings() {
+      try {
+        const res = await api.get("/seats/my-bookings");
+        console.log(res.data);
+        setBookings(res.data);
+      } catch {
+        showNotificationMsg("Failed to load bookings");
+      }
+    }
+    fetchBookings();
+  }, []);
+
+  /* ---------------- SEATS ---------------- */
   const generateSeats = () => {
     const seats = [];
-    const rows = 10;
-    const cols = 10;
-    
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
-        const seatNum = row * cols + col + 1;
-        // Define seat types: window seats (columns 0 and 9), sunlight seats (rows 0 and 1)
-        let seatType = 'regular';
-        if (col === 0 || col === 9) {
-          seatType = 'window';
-        } else if (row === 0 || row === 1) {
-          seatType = 'sunlight';
-        }
-        
-        seats.push({
-          id: seatNum,
-          type: seatType,
-          isOccupied: false // Will be calculated dynamically based on bookings
-        });
+    for (let row = 0; row < 10; row++) {
+      for (let col = 0; col < 10; col++) {
+        const id = row * 10 + col + 1;
+        let type = 'regular';
+        if (col === 0 || col === 9) type = 'window';
+        else if (row <= 1) type = 'sunlight';
+        seats.push({ id, type });
       }
     }
     return seats;
@@ -46,185 +74,105 @@ export default function CafeReserve() {
 
   const [seats] = useState(generateSeats());
 
-  const [bookings, setBookings] = useState([
-    {
-      id: 1,
-      seatId: 42,
-      date: 'Today',
-      time: '12:30 PM - 1:30 PM',
-      bookedAt: new Date(Date.now() - 2 * 60 * 1000),
-      status: 'confirmed'
-    },
-    {
-      id: 2,
-      seatId: 42,
-      date: 'Today',
-      time: '11:10 PM - 1:30 PM',
-      bookedAt: new Date(Date.now() - 10 * 60 * 1000),
-      status: 'confirmed'
-    }
-  ]);
-
-  // Update bookings timer
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setBookings(prev => [...prev]);
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
+  /* ---------------- HELPERS ---------------- */
   function showNotificationMsg(msg) {
     setNotificationMessage(msg);
     setShowNotification(true);
     setTimeout(() => setShowNotification(false), 3000);
   }
 
-  function handleSeatClick(seat) {
-    if (!seat.isOccupied) {
-      setSelectedSeat(selectedSeat === seat.id ? null : seat.id);
-    }
-  }
-
   function formatTime12Hour(time24) {
     if (!time24) return '';
-    const [hours, minutes] = time24.split(':');
-    const hour = parseInt(hours);
-    const period = hour >= 12 ? 'PM' : 'AM';
-    const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
-    return `${hour12}:${minutes} ${period}`;
+    const [h, m] = time24.split(':');
+    const hour = Number(h);
+    const suffix = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour % 12 || 12;
+    return `${hour12}:${m} ${suffix}`;
   }
 
   function calculateDuration(start, end) {
     if (!start || !end) return 0;
-    const [startHour, startMin] = start.split(':').map(Number);
-    const [endHour, endMin] = end.split(':').map(Number);
-    const startMinutes = startHour * 60 + startMin;
-    const endMinutes = endHour * 60 + endMin;
-    return (endMinutes - startMinutes) / 60;
-  }
-
-  function timeToMinutes(time24) {
-    if (!time24) return 0;
-    const [hours, minutes] = time24.split(':').map(Number);
-    return hours * 60 + minutes;
-  }
-
-  function parseTimeFromFormatted(timeStr) {
-    // Converts "11:00 AM" to "11:00" (24-hour format)
-    const [time, period] = timeStr.split(' ');
-    let [hours, minutes] = time.split(':').map(Number);
-    
-    if (period === 'PM' && hours !== 12) {
-      hours += 12;
-    } else if (period === 'AM' && hours === 12) {
-      hours = 0;
-    }
-    
-    return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}`;
-  }
-
-  function checkTimeOverlap(seatId, newStart, newEnd) {
-    // Check if the new booking overlaps with any existing booking for this seat
-    const newStartMin = timeToMinutes(newStart);
-    const newEndMin = timeToMinutes(newEnd);
-
-    return bookings.some(booking => {
-      if (booking.seatId !== seatId || booking.status === 'cancelled') return false;
-      
-      // Parse the booking time (e.g., "11:00 AM - 12:00 PM")
-      const [startStr, endStr] = booking.time.split(' - ');
-      const bookingStart24 = parseTimeFromFormatted(startStr);
-      const bookingEnd24 = parseTimeFromFormatted(endStr);
-      
-      const bookingStartMin = timeToMinutes(bookingStart24);
-      const bookingEndMin = timeToMinutes(bookingEnd24);
-      
-      // Check if times overlap
-      return (newStartMin < bookingEndMin && newEndMin > bookingStartMin);
-    });
+    const [sh, sm] = start.split(':').map(Number);
+    const [eh, em] = end.split(':').map(Number);
+    return ((eh * 60 + em) - (sh * 60 + sm)) / 60;
   }
 
   function isSeatOccupiedForTime(seatId, start, end) {
     // Check if seat is occupied for the selected time slot
     if (!start || !end) return false;
-    return checkTimeOverlap(seatId, start, end);
+
+    async function checkAvailability() {
+      return await api.get(`/seats/check-availability/${start}/${end}/${seatId}`);
+    }
+
+    checkAvailability();
   }
 
-  function handleConfirmBooking() {
-    if (!selectedSeat || !startTime || !endTime) {
-      showNotificationMsg('⚠️ Please select a seat, start time, and end time');
-      return;
-    }
+  /* ---------------- ACTIONS ---------------- */
+  async function handleConfirmBooking() {
+    console.log(selectedSeat);
+    if (!selectedSeat || !startTime || !endTime)
+      return showNotificationMsg('⚠️ Please complete all fields');
 
     const duration = calculateDuration(startTime, endTime);
-    
-    if (duration <= 0) {
-      showNotificationMsg('⚠️ End time must be after start time');
-      return;
-    }
+    if (duration <= 0)
+      return showNotificationMsg('⚠️ End time must be after start time');
+    if (duration > 1)
+      return showNotificationMsg('⚠️ Max booking duration is 1 hour');
 
-    if (duration > 1) {
-      showNotificationMsg('⚠️ Maximum booking duration is 1 hour');
-      return;
-    }
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const start = new Date(`${today}T${startTime}`).toISOString();
+      const end = new Date(`${today}T${endTime}`).toISOString();
+      console.log(today);
+      const res = await api.post("/seats/book", {
+        seatId: selectedSeat,
+        startTime: start,
+        endTime: end
+      });
+      console.log(res);
 
-    // Check if seat is already booked for this time slot
-    if (checkTimeOverlap(selectedSeat, startTime, endTime)) {
-      showNotificationMsg('⚠️ This seat is already booked for this time slot!');
-      return;
-    }
-
-    const newBooking = {
-      id: Date.now(),
-      seatId: selectedSeat,
-      date: 'Today',
-      time: `${formatTime12Hour(startTime)} - ${formatTime12Hour(endTime)}`,
-      bookedAt: new Date(),
-      status: 'confirmed'
-    };
-
-    setBookings([newBooking, ...bookings]);
-    showNotificationMsg('✅ Booking confirmed!');
-    
-    setTimeout(() => {
+      setBookings(prev => [...prev, res.data.booking]);
       setSelectedSeat(null);
-      setStartTime('');
-      setEndTime('');
-      setCurrentScreen('bookings');
-    }, 1500);
+      showNotificationMsg("✅ Booking confirmed");
+    } catch (e) {
+      showNotificationMsg(
+        e.response?.data?.message || "❌ Seat unavailable"
+      );
+    }
   }
 
   function getTimeRemaining(bookedAt) {
-    const now = new Date();
-    const timeDiff = 15 - (now - new Date(bookedAt)) / (1000 * 60);
-    return Math.max(0, timeDiff);
-  }
+     const now = new Date();
+     const timeDiff = 15 - (now - new Date(bookedAt)) / (1000 * 60);
+     return Math.max(0, timeDiff);
+   }
 
-  function canCancelBooking(bookedAt) {
-    return getTimeRemaining(bookedAt) > 0;
-  }
-
-  // Calculate countdown percentage for progress bar
   function getCountdownPercentage(bookedAt) {
     const timeRemaining = getTimeRemaining(bookedAt);
     return (timeRemaining / 15) * 100;
-  }
+}
 
-  function handleCancelClick(bookingId) {
-    const booking = bookings.find(b => b.id === bookingId);
-    if (!canCancelBooking(booking.bookedAt)) {
-      showNotificationMsg('⚠️ Cancellation period expired');
-      return;
-    }
-    setCancelBookingId(bookingId);
+  function handleCancelClick(id) {
+    setCancelBookingId(id);
     setShowCancelModal(true);
   }
 
-  function confirmCancel() {
-    setBookings(bookings.filter(b => b.id !== cancelBookingId));
-    setShowCancelModal(false);
-    setCancelBookingId(null);
-    showNotificationMsg('✅ Booking cancelled');
+  async function confirmCancel() {
+    try {
+      console.log("cancel");
+      await api.delete(`/seats/cancel/${cancelBookingId}`);
+      setBookings(prev =>
+        prev.map(b =>
+          b._id === cancelBookingId ? { ...b, status: 'cancelled' } : b
+        )
+      );
+      showNotificationMsg("Booking cancelled");
+    } catch {
+      showNotificationMsg("Cancellation failed");
+    } finally {
+      setShowCancelModal(false);
+    }
   }
 
   function generateCheckInCode() {
@@ -232,34 +180,37 @@ export default function CafeReserve() {
   }
 
   function handleCheckInRequest(booking) {
-    const code = generateCheckInCode();
-    setCheckInCode(code);
+    setCheckInCode(generateCheckInCode());
     setActiveCheckIn(booking);
     setInputCode('');
     setShowCheckInModal(true);
   }
 
   function handleCheckIn() {
-    if (inputCode === checkInCode) {
-      setBookings(bookings.map(b => 
-        b.id === activeCheckIn.id 
+    if (inputCode !== checkInCode)
+      return showNotificationMsg('❌ Incorrect code');
+
+    setBookings(prev =>
+      prev.map(b =>
+        b._id === activeCheckIn._id
           ? { ...b, status: 'checked-in' }
           : b
-      ));
-      setShowCheckInModal(false);
-      showNotificationMsg('✅ Check-in successful!');
-      setActiveCheckIn(null);
-      setInputCode('');
-    } else {
-      showNotificationMsg('❌ Incorrect code');
-    }
+      )
+    );
+    setShowCheckInModal(false);
+    showNotificationMsg('✅ Check-in successful');
   }
 
   function handleViewDetails(bookingId) {
-    const booking = bookings.find(b => b.id === bookingId);
+    const booking = bookings.find(b => b._id === bookingId);
     setSelectedBookingDetails(booking);
     setShowDetailsModal(true);
+}
+
+function handleSeatClick(seat) {
+    setSelectedSeat(selectedSeat === seat.id ? null : seat.id);
   }
+
 
   function getSeatIcon(seatType) {
     if (seatType === 'window') {
@@ -271,7 +222,7 @@ export default function CafeReserve() {
   }
 
   function getSeatColor(seat) {
-    const isOccupied = isSeatOccupiedForTime(seat.id, startTime, endTime);
+    const isOccupied = isSeatOccupiedForTime(seat.id, new Date(`${today}T${startTime}`).toISOString(), new Date(`${today}T${endTime}`).toISOString());
     const isSelected = selectedSeat === seat.id;
     
     if (isOccupied) {
@@ -601,13 +552,13 @@ export default function CafeReserve() {
             <div className="space-y-4">
               {bookings.filter(b => b.status !== 'cancelled').map((booking) => {
                 const timeRemaining = getTimeRemaining(booking.bookedAt);
-                const canCancel = canCancelBooking(booking.bookedAt);
+                // const canCancel = canCancelBooking(booking.bookedAt);
                 const countdownPercentage = getCountdownPercentage(booking.bookedAt);
                 const minutes = Math.floor(timeRemaining);
                 const seconds = Math.floor((timeRemaining - minutes) * 60);
 
                 return (
-                  <div key={booking.id} className="bg-white border-2 border-gray-200 rounded-2xl p-4 shadow-sm">
+                  <div key={booking._id} className="bg-white border-2 border-gray-200 rounded-2xl p-4 shadow-sm">
                     <div className="flex items-start justify-between mb-3">
                       <div>
                         <div className="text-sm font-bold text-gray-900 mb-1">
@@ -628,9 +579,9 @@ export default function CafeReserve() {
                     </div>
 
                     <div className="flex gap-2">
-                      {canCancel && booking.status === 'confirmed' ? (
+                      {booking.status === 'BOOKED' ? (
                         <button
-                          onClick={() => handleCancelClick(booking.id)}
+                          onClick={() => handleCancelClick(booking._id)}
                           className="flex-1 py-2.5 rounded-xl text-sm font-semibold relative overflow-hidden bg-gray-400"
                         >
                           {/* Progress bar background */}
@@ -649,7 +600,7 @@ export default function CafeReserve() {
                         </button>
                       ) : (
                         <button 
-                          onClick={() => handleViewDetails(booking.id)}
+                          onClick={() => handleViewDetails(booking._id)}
                           className="flex-1 py-2.5 bg-gray-400 text-white rounded-xl text-sm font-semibold"
                         >
                           View Details

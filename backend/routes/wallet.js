@@ -1,3 +1,56 @@
+/**
+ * @swagger
+ * definitions:
+ *   Wallet:
+ *     type: object
+ *     properties:
+ *       managerId:
+ *         type: string
+ *       balance:
+ *         type: number
+ *
+ * /wallet:
+ *   post:
+ *     summary: Deduct amount from manager's wallet
+ *     parameters:
+ *       - in: body
+ *         name: body
+ *         schema:
+ *           $ref: '#/definitions/WalletDeduction'
+ *     responses:
+ *       200:
+ *         description: Amount deducted successfully
+ *       402:
+ *         description: Insufficient manager balance
+ *   post:
+ *     summary: Refund amount to manager's wallet
+ *     parameters:
+ *       - in: body
+ *         name: body
+ *         schema:
+ *           $ref: '#/definitions/WalletRefund'
+ *     responses:
+ *       200:
+ *         description: Amount refunded successfully
+ *       402:
+ *         description: Invalid manager details
+ *
+ * definitions:
+ *   WalletDeduction:
+ *     type: object
+ *     properties:
+ *       managerId:
+ *         type: string
+ *       amount:
+ *         type: number
+ *   WalletRefund:
+ *     type: object
+ *     properties:
+ *       managerId:
+ *         type: string
+ *       amount:
+ *         type: number
+ */
 const express = require("express");
 const Wallet = require("../models/Wallet")
 

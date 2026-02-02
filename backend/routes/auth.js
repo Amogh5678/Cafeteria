@@ -41,6 +41,7 @@ router.get("/callback", async (req, res, next) => {
     console.log(claims);
 
     req.session.user = {
+      employeeId: claims.uid,
       id: claims.sub,
       displayName: claims.name,
       email: claims.email,

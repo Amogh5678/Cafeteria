@@ -3,10 +3,10 @@ require("dotenv").config();
 const express = require("express");
 const session = require("express-session");
 const cors = require("cors");
-const swaggerUi = require("swagger-ui-express");
+const connectDB = require("./config/db")
+const swaggerJSDoc = require("swagger-jsdoc");
+const swaggerUI = require("swagger-ui-express");
 
-const swaggerSpec = require("./swagger");
-const connectDB = require("./config/db");
 const { ensureAuth } = require("./middleware/authMiddleware");
 
 // Routes
@@ -21,11 +21,24 @@ const { expireReservations } = require("./services/expiry.service");
 
 const app = express();
 
-/**
- * --------------------
- * Database
- * --------------------
- */
+const options = {
+  definition: {
+    openapi: '3.0.0',
+    info: {
+      title: 'Blu Reserve API',
+      version: '1.0.0',
+    },
+    servers: [
+      {
+        url: 'http://localhost:8080',
+      },
+    ],
+  },
+  apis: ['./routes/*.(js|yaml|json)']
+}
+
+const swaggerSpec = swaggerJSDoc(options);
+
 connectDB();
 
 /**
@@ -68,6 +81,8 @@ app.use((req, res, next) => {
   next();
 });
 
+app.use('/api-docs', swaggerUI.serve, swaggerUI.setup(swaggerSpec));
+
 /**
  * --------------------
  * Routes
@@ -93,6 +108,7 @@ app.get("/api/me", ensureAuth, (req, res) => {
     id: req.user.id,
     name: req.user.displayName,
     email: req.user.email,
+    employeeId: req.user.employeeId,
   });
 });
 
@@ -101,9 +117,6 @@ app.use("/reservations", reservationRoutes);
 app.use("/", checkinRoutes);
 app.use("/seats", seatRoutes);
 app.use("/wallet", walletRoutes);
-
-// Swagger docs
-app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 /**
  * --------------------

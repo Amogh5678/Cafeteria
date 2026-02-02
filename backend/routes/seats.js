@@ -1,3 +1,80 @@
+/**
+ * @swagger
+ * definitions:
+ *   Booking:
+ *     type: object
+ *     properties:
+ *       employeeId:
+ *         type: string
+ *       managerId:
+ *         type: string
+ *       seatId:
+ *         type: integer
+ *       startTime:
+ *         type: string
+ *         format: date-time
+ *       endTime:
+ *         type: string
+ *         format: date-time
+ *       durationMinutes:
+ *         type: integer
+ *       amountCharged:
+ *         type: number
+ *       status:
+ *         type: string
+ *         enum: [BOOKED, CANCELLED]
+ *
+ * /seats:
+ *   post:
+ *     summary: Book a seat
+ *     parameters:
+ *       - in: body
+ *         name: body
+ *         schema:
+ *           $ref: '#/definitions/Booking'
+ *     responses:
+ *       201:
+ *         description: Seat booked successfully
+ *         schema:
+ *           $ref: '#/definitions/Booking'
+ *       400:
+ *         description: Bad request (e.g., invalid time, seat ID, etc.)
+ *       409:
+ *         description: Cafeteria full
+ *   delete:
+ *     summary: Cancel a booking
+ *     parameters:
+ *       - in: path
+ *         name: bookingId
+ *         schema:
+ *           type: string
+ *         description: ID of the booking to cancel
+ *     responses:
+ *       200:
+ *         description: Booking cancelled & refunded
+ *       404:
+ *         description: Booking not found
+ *       400:
+ *         description: Cancellation window closed
+ *   get:
+ *     summary: Get my bookings
+ *     parameters:
+ *       - in: query
+ *         name: employeeId
+ *         schema:
+ *           type: string
+ *         description: Employee ID
+ *     responses:
+ *       200:
+ *         description: List of bookings for the employee
+ *         schema:
+ *           type: array
+ *           items:
+ *             $ref: '#/definitions/Booking'
+ *       500:
+ *         description: Internal server error
+ */
+
 const express = require("express");
 const axios = require("axios");
 const mongoose = require("mongoose");
@@ -72,7 +149,6 @@ router.post("/book", ensureAuth, async (req, res) => {
         }
 
         const amount = durationMinutes * constants.BLU_RATE_PER_MINUTE;
-        console.log(amount);
         
         await axios.post(
             `http://localhost:${process.env.PORT}/wallet/deduct`,
@@ -114,7 +190,10 @@ router.delete("/cancel/:bookingId", ensureAuth, async (req, res) => {
     const { bookingId } = req.params;
     const { employeeId } = req.user;
 
+    console.log("Cancel")
+
     const booking = await Booking.findById(new mongoose.Types.ObjectId(bookingId));
+    console.log("Booking");
 
     if (!booking || booking.status !== "BOOKED") {
       return res.status(404).json({ message: "Booking not found" });
@@ -150,7 +229,10 @@ router.get("/my-bookings", ensureAuth, async (req, res) => {
     try {
         const { employeeId } = req.user;
 
+        const now = new Date();
         const bookings = await Booking.find({ employeeId })
+        .where('startTime')
+        .gt(now)
         .sort({ startTime: -1 });
 
         res.json(bookings);
@@ -158,5 +240,29 @@ router.get("/my-bookings", ensureAuth, async (req, res) => {
         res.status(500).json({ error: err.message });
     }
 });
+
+router.get("/check-availability/:startTime/:endTime/", ensureAuth, async (req, res) => {
+  try {
+    const { startTime, endTime } = req.params;
+
+    if (!startTime || !endTime) {
+            return res.status(400).json({ message: "Missing startTime or endTime" });
+        }
+
+        const overlappingBookings = await Booking.find({
+            startTime: { $lt: endTime },
+            endTime: { $gt: startTime },
+            status: "BOOKED"
+        });
+
+        const occupiedSeats = overlappingBookings.map(b => b.seatId);
+
+        return res.json({ occupiedSeats });
+    } catch (err) {
+        console.error(err);
+        return res.status(500).json({ message: "Failed to check availability" });
+    }
+});
+
 
 module.exports = router;

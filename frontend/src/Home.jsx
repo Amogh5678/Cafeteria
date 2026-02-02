@@ -1,10 +1,14 @@
+import React from "react";
 import { useEffect, useState } from "react";
 import { BACKEND_URL } from "./config";
 import "./index.css";
+import { useNavigate } from "react-router-dom";
 
 function Home() {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetch(`${BACKEND_URL}/api/me`, {
@@ -68,6 +72,10 @@ function Home() {
 
           <button className="login-btn" onClick={logout}>
             Logout
+          </button>
+
+          <button className="login-btn" onClick={() => navigate("/booking")}>
+            Reserve Seats
           </button>
         </>
       )}

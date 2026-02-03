@@ -61,7 +61,7 @@ router.get("/callback", async (req, res, next) => {
 router.get("/logout", (req, res) => {
   req.session.destroy(() => {
     res.clearCookie("connect.sid");
-    res.redirect("/");
+    res.redirect("http://localhost:5173/");
   });
 });
 

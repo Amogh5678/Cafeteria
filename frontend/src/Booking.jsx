@@ -2,19 +2,10 @@ import { ChevronLeft, Coffee, X, Clock, Calendar, QrCode, CheckCircle2, Sun, Win
 import { useNavigate } from 'react-router-dom';
 import { MapPin } from 'lucide-react';
 import React, { useState, useEffect } from 'react';
-import {
-  Coffee,
-  X,
-  Clock,
-  Calendar,
-  Sun,
-  Wind
-} from 'lucide-react';
-import api from './api';
-import { BACKEND_URL } from "./config";
+
 
 export default function CafeReserve() {
-  const [currentScreen, setCurrentScreen] = useState('reserve');
+  const [currentScreen, setCurrentScreen] = useState('reserve'); // 'reserve' or 'bookings'
   const [selectedSeat, setSelectedSeat] = useState(null);
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
@@ -34,39 +25,8 @@ export default function CafeReserve() {
   const navigate = useNavigate();
 
   const handleImHereClick = () => navigate('/chkin');
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [bookings, setBookings] = useState([]);
 
-  const today = new Date().toISOString().split('T')[0];
-
-  /* ---------------- USER ---------------- */
-  useEffect(() => {
-    fetch(`${BACKEND_URL}/api/me`, { credentials: "include" })
-      .then(res => {
-        if (!res.ok) throw new Error("Not logged in");
-        return res.json();
-      })
-      .then(setUser)
-      .catch(() => setUser(null))
-      .finally(() => setLoading(false));
-  }, []);
-
-  /* ---------------- BOOKINGS ---------------- */
-  useEffect(() => {
-    async function fetchBookings() {
-      try {
-        const res = await api.get("/seats/my-bookings");
-        console.log(res.data);
-        setBookings(res.data);
-      } catch {
-        showNotificationMsg("Failed to load bookings");
-      }
-    }
-    fetchBookings();
-  }, []);
-
-  /* ---------------- SEATS ---------------- */
+  // Generate seats with seat types
   const generateSeats = () => {
     const seats = [];
     const rows = 10;
@@ -87,13 +47,6 @@ export default function CafeReserve() {
           type: seatType,
           isOccupied: false
         });
-    for (let row = 0; row < 10; row++) {
-      for (let col = 0; col < 10; col++) {
-        const id = row * 10 + col + 1;
-        let type = 'regular';
-        if (col === 0 || col === 9) type = 'window';
-        else if (row <= 1) type = 'sunlight';
-        seats.push({ id, type });
       }
     }
     return seats;
@@ -101,20 +54,52 @@ export default function CafeReserve() {
 
   const [seats] = useState(generateSeats());
 
-  /* ---------------- HELPERS ---------------- */
+  const [bookings, setBookings] = useState([
+    {
+      id: 1,
+      seatId: 42,
+      date: 'Today',
+      time: '12:30 PM - 1:30 PM',
+      bookedAt: new Date(Date.now() - 2 * 60 * 1000),
+      status: 'confirmed'
+    },
+    {
+      id: 2,
+      seatId: 42,
+      date: 'Today',
+      time: '11:10 PM - 1:30 PM',
+      bookedAt: new Date(Date.now() - 10 * 60 * 1000),
+      status: 'confirmed'
+    }
+  ]);
+
+  // Update bookings timer
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setBookings(prev => [...prev]);
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
+
   function showNotificationMsg(msg) {
     setNotificationMessage(msg);
     setShowNotification(true);
     setTimeout(() => setShowNotification(false), 3000);
   }
 
+  function handleSeatClick(seat) {
+    if (!seat.isOccupied) {
+      setSelectedSeat(selectedSeat === seat.id ? null : seat.id);
+    }
+  }
+
   function formatTime12Hour(time24) {
     if (!time24) return '';
-    const [h, m] = time24.split(':');
-    const hour = Number(h);
-    const suffix = hour >= 12 ? 'PM' : 'AM';
-    const hour12 = hour % 12 || 12;
-    return `${hour12}:${m} ${suffix}`;
+    const [hours, minutes] = time24.split(':');
+    const hour = parseInt(hours);
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    return `${hour12}:${minutes} ${period}`;
   }
 
   function calculateDuration(start, end) {
@@ -161,13 +146,12 @@ export default function CafeReserve() {
       
       return (newStartMin < bookingEndMin && newEndMin > bookingStartMin);
     });
-    const [sh, sm] = start.split(':').map(Number);
-    const [eh, em] = end.split(':').map(Number);
-    return ((eh * 60 + em) - (sh * 60 + sm)) / 60;
   }
 
   function isSeatOccupiedForTime(seatId, start, end) {
     if (!start || !end) return false;
+    return checkTimeOverlap(seatId, start, end);
+  }
 
   async function handleConfirmBooking() {
     if (!selectedSeat || !startTime || !endTime) {
@@ -180,12 +164,12 @@ export default function CafeReserve() {
     if (duration <= 0) {
       showNotificationMsg('⚠️ End time must be after start time');
       return;
-    async function checkAvailability() {
-      return await api.get(`/seats/check-availability/${start}/${end}/${seatId}`);
     }
 
-    checkAvailability();
-  }
+    if (duration > 1) {
+      showNotificationMsg('⚠️ Maximum booking duration is 1 hour');
+      return;
+    }
 
     if (checkTimeOverlap(selectedSeat, startTime, endTime)) {
       showNotificationMsg('⚠️ This seat is already booked for this time slot!');
@@ -238,71 +222,39 @@ export default function CafeReserve() {
       showNotificationMsg(`❌ ${error.message}`);
     } finally {
       setIsLoading(false);
-  /* ---------------- ACTIONS ---------------- */
-  async function handleConfirmBooking() {
-    console.log(selectedSeat);
-    if (!selectedSeat || !startTime || !endTime)
-      return showNotificationMsg('⚠️ Please complete all fields');
-
-    const duration = calculateDuration(startTime, endTime);
-    if (duration <= 0)
-      return showNotificationMsg('⚠️ End time must be after start time');
-    if (duration > 1)
-      return showNotificationMsg('⚠️ Max booking duration is 1 hour');
-
-    try {
-      const today = new Date().toISOString().split('T')[0];
-      const start = new Date(`${today}T${startTime}`).toISOString();
-      const end = new Date(`${today}T${endTime}`).toISOString();
-      console.log(today);
-      const res = await api.post("/seats/book", {
-        seatId: selectedSeat,
-        startTime: start,
-        endTime: end
-      });
-      console.log(res);
-
-      setBookings(prev => [...prev, res.data.booking]);
-      setSelectedSeat(null);
-      showNotificationMsg("✅ Booking confirmed");
-    } catch (e) {
-      showNotificationMsg(
-        e.response?.data?.message || "❌ Seat unavailable"
-      );
     }
   }
 
   function getTimeRemaining(bookedAt) {
-     const now = new Date();
-     const timeDiff = 15 - (now - new Date(bookedAt)) / (1000 * 60);
-     return Math.max(0, timeDiff);
-   }
+    const now = new Date();
+    const timeDiff = 15 - (now - new Date(bookedAt)) / (1000 * 60);
+    return Math.max(0, timeDiff);
+  }
+
+  function canCancelBooking(bookedAt) {
+    return getTimeRemaining(bookedAt) > 0;
+  }
 
   function getCountdownPercentage(bookedAt) {
     const timeRemaining = getTimeRemaining(bookedAt);
     return (timeRemaining / 15) * 100;
-}
+  }
 
-  function handleCancelClick(id) {
-    setCancelBookingId(id);
+  function handleCancelClick(bookingId) {
+    const booking = bookings.find(b => b.id === bookingId);
+    if (!canCancelBooking(booking.bookedAt)) {
+      showNotificationMsg('⚠️ Cancellation period expired');
+      return;
+    }
+    setCancelBookingId(bookingId);
     setShowCancelModal(true);
   }
 
-  async function confirmCancel() {
-    try {
-      console.log("cancel");
-      await api.delete(`/seats/cancel/${cancelBookingId}`);
-      setBookings(prev =>
-        prev.map(b =>
-          b._id === cancelBookingId ? { ...b, status: 'cancelled' } : b
-        )
-      );
-      showNotificationMsg("Booking cancelled");
-    } catch {
-      showNotificationMsg("Cancellation failed");
-    } finally {
-      setShowCancelModal(false);
-    }
+  function confirmCancel() {
+    setBookings(bookings.filter(b => b.id !== cancelBookingId));
+    setShowCancelModal(false);
+    setCancelBookingId(null);
+    showNotificationMsg('✅ Booking cancelled');
   }
 
   function generateCheckInCode() {
@@ -310,37 +262,34 @@ export default function CafeReserve() {
   }
 
   function handleCheckInRequest(booking) {
-    setCheckInCode(generateCheckInCode());
+    const code = generateCheckInCode();
+    setCheckInCode(code);
     setActiveCheckIn(booking);
     setInputCode('');
     setShowCheckInModal(true);
   }
 
   function handleCheckIn() {
-    if (inputCode !== checkInCode)
-      return showNotificationMsg('❌ Incorrect code');
-
-    setBookings(prev =>
-      prev.map(b =>
-        b._id === activeCheckIn._id
+    if (inputCode === checkInCode) {
+      setBookings(bookings.map(b => 
+        b.id === activeCheckIn.id 
           ? { ...b, status: 'checked-in' }
           : b
-      )
-    );
-    setShowCheckInModal(false);
-    showNotificationMsg('✅ Check-in successful');
+      ));
+      setShowCheckInModal(false);
+      showNotificationMsg('✅ Check-in successful!');
+      setActiveCheckIn(null);
+      setInputCode('');
+    } else {
+      showNotificationMsg('❌ Incorrect code');
+    }
   }
 
   function handleViewDetails(bookingId) {
-    const booking = bookings.find(b => b._id === bookingId);
+    const booking = bookings.find(b => b.id === bookingId);
     setSelectedBookingDetails(booking);
     setShowDetailsModal(true);
-}
-
-function handleSeatClick(seat) {
-    setSelectedSeat(selectedSeat === seat.id ? null : seat.id);
   }
-
 
   function getSeatIcon(seatType) {
     if (seatType === 'window') {
@@ -352,7 +301,7 @@ function handleSeatClick(seat) {
   }
 
   function getSeatColor(seat) {
-    const isOccupied = isSeatOccupiedForTime(seat.id, new Date(`${today}T${startTime}`).toISOString(), new Date(`${today}T${endTime}`).toISOString());
+    const isOccupied = isSeatOccupiedForTime(seat.id, startTime, endTime);
     const isSelected = selectedSeat === seat.id;
     
     if (isOccupied) {
@@ -717,13 +666,13 @@ function handleSeatClick(seat) {
             <div className="space-y-4">
               {bookings.filter(b => b.status !== 'cancelled').map((booking) => {
                 const timeRemaining = getTimeRemaining(booking.bookedAt);
-                // const canCancel = canCancelBooking(booking.bookedAt);
+                const canCancel = canCancelBooking(booking.bookedAt);
                 const countdownPercentage = getCountdownPercentage(booking.bookedAt);
                 const minutes = Math.floor(timeRemaining);
                 const seconds = Math.floor((timeRemaining - minutes) * 60);
 
                 return (
-                  <div key={booking._id} className="bg-white border-2 border-gray-200 rounded-2xl p-4 shadow-sm">
+                  <div key={booking.id} className="bg-white border-2 border-gray-200 rounded-2xl p-4 shadow-sm">
                     <div className="flex items-start justify-between mb-3">
                       <div>
                         <div className="text-sm font-bold text-gray-900 mb-1">
@@ -744,9 +693,9 @@ function handleSeatClick(seat) {
                     </div>
 
                     <div className="flex gap-2">
-                      {booking.status === 'BOOKED' ? (
+                      {canCancel && booking.status === 'confirmed' ? (
                         <button
-                          onClick={() => handleCancelClick(booking._id)}
+                          onClick={() => handleCancelClick(booking.id)}
                           className="flex-1 py-2.5 rounded-xl text-sm font-semibold relative overflow-hidden bg-gray-400"
                         >
                           <div 
@@ -763,7 +712,7 @@ function handleSeatClick(seat) {
                         </button>
                       ) : (
                         <button 
-                          onClick={() => handleViewDetails(booking._id)}
+                          onClick={() => handleViewDetails(booking.id)}
                           className="flex-1 py-2.5 bg-gray-400 text-white rounded-xl text-sm font-semibold"
                         >
                           View Details
